@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latent Space Explorer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0f;
+            color: #e0e0e0;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            padding: 16px 0 8px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: #c8c8d0;
+        }
+
+        .header h1 span {
+            color: #ff4444;
+        }
+
+        .header .subtitle {
+            font-size: 11px;
+            color: #555;
+            margin-top: 4px;
+            letter-spacing: 1px;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            padding: 10px 40px 20px;
+        }
+
+        .panel {
+            background: #111118;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+        }
+
+        .panel-label {
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: #111118;
+            padding: 0 8px;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #555;
+        }
+
+        .map-panel {
+            width: 560px;
+            height: 560px;
+        }
+
+        #latentCanvas {
+            width: 520px;
+            height: 520px;
+            cursor: crosshair;
+            border-radius: 4px;
+        }
+
+        .digit-panel {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #digitImage {
+            width: 196px;
+            height: 196px;
+            image-rendering: pixelated;
+            border: 1px solid #1e1e2e;
+            border-radius: 4px;
+            background: #000;
+        }
+
+        .coords {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ff4444;
+            letter-spacing: 1px;
+            text-align: center;
+        }
+
+        .coords .label {
+            font-size: 10px;
+            color: #444;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .info-box {
+            background: #0d0d14;
+            border: 1px solid #1a1a28;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .info-box .val {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e0e0e0;
+        }
+
+        .info-box .lbl {
+            font-size: 9px;
+            color: #444;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .controls {
+            font-size: 10px;
+            color: #333;
+            text-align: center;
+            letter-spacing: 1px;
+            width: 100%;
+            padding-top: 8px;
+            border-top: 1px solid #1a1a28;
+        }
+
+        .controls kbd {
+            background: #1a1a28;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #666;
+            font-family: inherit;
+        }
+
+        .region-label {
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            min-height: 18px;
+        }
+
+        .trail-counter {
+            font-size: 10px;
+            color: #333;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>LATENT SPACE <span>EXPLORER</span></h1>
+        <div class="subtitle">Walking through an autoencoder's learned representations</div>
+    </div>
+
+    <div class="main">
+        <div class="panel map-panel">
+            <div class="panel-label">Latent Space Map</div>
+            <canvas id="latentCanvas" width="1040" height="1040"></canvas>
+        </div>
+
+        <div class="panel digit-panel">
+            <div class="panel-label">Decoder Output</div>
+
+            <img id="digitImage" alt="Generated digit">
+
+            <div class="coords">
+                <span class="label">Current Position</span>
+                <span id="coordDisplay">(0.0, 0.0)</span>
+            </div>
+
+            <div class="region-label" id="regionLabel">Initializing...</div>
+
+            <div class="info-grid">
+                <div class="info-box">
+                    <div class="val" id="stepsCount">0</div>
+                    <div class="lbl">Steps</div>
+                </div>
+                <div class="info-box">
+                    <div class="val" id="distanceTraveled">0.0</div>
+                    <div class="lbl">Distance</div>
+                </div>
+                <div class="info-box">
+                    <div class="val" id="nearestDigit">-</div>
+                    <div class="lbl">Nearest Cluster</div>
+                </div>
+                <div class="info-box">
+                    <div class="val" id="density">-</div>
+                    <div class="lbl">Local Density</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <kbd>Arrow Keys</kbd> move &nbsp;&middot;&nbsp;
+                <kbd>Click</kbd> teleport &nbsp;&middot;&nbsp;
+                <kbd>R</kbd> reset trail
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('latentCanvas');
+        const ctx = canvas.getContext('2d');
+        const digitImg = document.getElementById('digitImage');
+        const coordDisplay = document.getElementById('coordDisplay');
+        const stepsCount = document.getElementById('stepsCount');
+        const distanceTraveled = document.getElementById('distanceTraveled');
+        const nearestDigit = document.getElementById('nearestDigit');
+        const densityEl = document.getElementById('density');
+        const regionLabel = document.getElementById('regionLabel');
+
+        // State
+        let pos = { z1: 0, z2: 0 };
+        let trail = [{ z1: 0, z2: 0 }];
+        let steps = 0;
+        let totalDist = 0;
+        const STEP_SIZE = 0.5;
+        let latentData = null;
+        let pendingRequest = false;
+
+        // View bounds (will be computed from data)
+        let VIEW = { minX: -30, maxX: 15, minY: -30, maxY: 15 };
+
+        // Digit colors (tab10-inspired)
+        const COLORS = [
+            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+        ];
+
+        // Convert latent coords to canvas coords
+        function toCanvas(z1, z2) {
+            const x = ((z1 - VIEW.minX) / (VIEW.maxX - VIEW.minX)) * canvas.width;
+            const y = ((VIEW.maxY - z2) / (VIEW.maxY - VIEW.minY)) * canvas.height;
+            return { x, y };
+        }
+
+        // Convert canvas coords to latent coords
+        function toLatent(cx, cy) {
+            const z1 = (cx / canvas.width) * (VIEW.maxX - VIEW.minX) + VIEW.minX;
+            const z2 = VIEW.maxY - (cy / canvas.height) * (VIEW.maxY - VIEW.minY);
+            return { z1, z2 };
+        }
+
+        // Find nearest digit cluster
+        function findNearest() {
+            if (!latentData) return { digit: '-', density: '-', region: '' };
+            const { z1: pz1, z2: pz2 } = pos;
+
+            // Count points within radius for density
+            const radius = 2.0;
+            let counts = new Array(10).fill(0);
+            let totalNear = 0;
+
+            for (let i = 0; i < latentData.z1.length; i++) {
+                const dz1 = latentData.z1[i] - pz1;
+                const dz2 = latentData.z2[i] - pz2;
+                const dist = Math.sqrt(dz1 * dz1 + dz2 * dz2);
+                if (dist < radius) {
+                    counts[latentData.labels[i]]++;
+                    totalNear++;
+                }
+            }
+
+            const maxCount = Math.max(...counts);
+            const digit = maxCount > 0 ? counts.indexOf(maxCount) : -1;
+
+            let region = '';
+            let densityLevel = '';
+            if (totalNear === 0) {
+                region = 'VOID - No data encoded here';
+                densityLevel = 'Empty';
+            } else if (totalNear < 10) {
+                region = `Sparse region near digit ${digit}`;
+                densityLevel = 'Low';
+            } else if (totalNear < 50) {
+                region = `Digit ${digit} territory`;
+                densityLevel = 'Medium';
+            } else {
+                region = `Dense ${digit} cluster`;
+                densityLevel = 'High';
+            }
+
+            return { digit: digit >= 0 ? digit : '?', density: densityLevel, region };
+        }
+
+        // Draw everything
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background
+            ctx.fillStyle = '#08080d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid lines
+            ctx.strokeStyle = '#151520';
+            ctx.lineWidth = 1;
+            for (let z = Math.ceil(VIEW.minX); z <= VIEW.maxX; z += 5) {
+                const { x } = toCanvas(z, 0);
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let z = Math.ceil(VIEW.minY); z <= VIEW.maxY; z += 5) {
+                const { y } = toCanvas(0, z);
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // Axes
+            ctx.strokeStyle = '#252535';
+            ctx.lineWidth = 2;
+            const origin = toCanvas(0, 0);
+            ctx.beginPath(); ctx.moveTo(0, origin.y); ctx.lineTo(canvas.width, origin.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(origin.x, 0); ctx.lineTo(origin.x, canvas.height); ctx.stroke();
+
+            // Data points
+            if (latentData) {
+                for (let i = 0; i < latentData.z1.length; i++) {
+                    const { x, y } = toCanvas(latentData.z1[i], latentData.z2[i]);
+                    const label = latentData.labels[i];
+                    ctx.fillStyle = COLORS[label] + '55';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Trail
+            if (trail.length > 1) {
+                ctx.strokeStyle = '#ff444488';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const start = toCanvas(trail[0].z1, trail[0].z2);
+                ctx.moveTo(start.x, start.y);
+                for (let i = 1; i < trail.length; i++) {
+                    const p = toCanvas(trail[i].z1, trail[i].z2);
+                    ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+
+                // Trail dots
+                for (let i = 0; i < trail.length; i++) {
+                    const p = toCanvas(trail[i].z1, trail[i].z2);
+                    const alpha = 0.3 + 0.7 * (i / trail.length);
+                    ctx.fillStyle = `rgba(255, 68, 68, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Current position - crosshair
+            const cp = toCanvas(pos.z1, pos.z2);
+
+            // Glow
+            const gradient = ctx.createRadialGradient(cp.x, cp.y, 0, cp.x, cp.y, 30);
+            gradient.addColorStop(0, 'rgba(255, 68, 68, 0.3)');
+            gradient.addColorStop(1, 'rgba(255, 68, 68, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(cp.x, cp.y, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Crosshair lines
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 1.5;
+            const chSize = 12;
+            ctx.beginPath(); ctx.moveTo(cp.x - chSize, cp.y); ctx.lineTo(cp.x + chSize, cp.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cp.x, cp.y - chSize); ctx.lineTo(cp.x, cp.y + chSize); ctx.stroke();
+
+            // Center dot
+            ctx.fillStyle = '#ff4444';
+            ctx.beginPath();
+            ctx.arc(cp.x, cp.y, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Generate digit at current position
+        async function generateDigit() {
+            if (pendingRequest) return;
+            pendingRequest = true;
+
+            try {
+                const resp = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ z1: pos.z1, z2: pos.z2 })
+                });
+                const data = await resp.json();
+                digitImg.src = 'data:image/png;base64,' + data.image;
+            } catch (e) {
+                console.error('Generate failed:', e);
+            }
+
+            pendingRequest = false;
+        }
+
+        // Update UI
+        function updateUI() {
+            coordDisplay.textContent = `(${pos.z1.toFixed(1)}, ${pos.z2.toFixed(1)})`;
+            stepsCount.textContent = steps;
+            distanceTraveled.textContent = totalDist.toFixed(1);
+
+            const info = findNearest();
+            nearestDigit.textContent = info.digit;
+            densityEl.textContent = info.density;
+            regionLabel.textContent = info.region;
+
+            draw();
+            generateDigit();
+        }
+
+        // Move
+        function move(dz1, dz2) {
+            const dist = Math.sqrt(dz1 * dz1 + dz2 * dz2);
+            pos.z1 += dz1;
+            pos.z2 += dz2;
+            trail.push({ z1: pos.z1, z2: pos.z2 });
+            steps++;
+            totalDist += dist;
+            updateUI();
+        }
+
+        // Teleport
+        function teleport(z1, z2) {
+            pos.z1 = z1;
+            pos.z2 = z2;
+            trail.push({ z1, z2 });
+            steps++;
+            updateUI();
+        }
+
+        // Keyboard controls
+        const keysDown = new Set();
+
+        document.addEventListener('keydown', (e) => {
+            if (keysDown.has(e.key)) return;
+            keysDown.add(e.key);
+
+            switch (e.key) {
+                case 'ArrowRight': move(STEP_SIZE, 0); break;
+                case 'ArrowLeft':  move(-STEP_SIZE, 0); break;
+                case 'ArrowUp':    move(0, STEP_SIZE); break;
+                case 'ArrowDown':  move(0, -STEP_SIZE); break;
+                case 'r': case 'R':
+                    trail = [{ z1: pos.z1, z2: pos.z2 }];
+                    steps = 0;
+                    totalDist = 0;
+                    updateUI();
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keysDown.delete(e.key);
+        });
+
+        // Click to teleport
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const cx = (e.clientX - rect.left) * scaleX;
+            const cy = (e.clientY - rect.top) * scaleY;
+            const { z1, z2 } = toLatent(cx, cy);
+            teleport(z1, z2);
+        });
+
+        // Load latent data and initialize
+        async function init() {
+            try {
+                const resp = await fetch('/api/latent_data');
+                latentData = await resp.json();
+
+                // Compute view bounds from data with padding
+                const padFrac = 0.1;
+                const minZ1 = Math.min(...latentData.z1);
+                const maxZ1 = Math.max(...latentData.z1);
+                const minZ2 = Math.min(...latentData.z2);
+                const maxZ2 = Math.max(...latentData.z2);
+                const padX = (maxZ1 - minZ1) * padFrac;
+                const padY = (maxZ2 - minZ2) * padFrac;
+                VIEW.minX = minZ1 - padX;
+                VIEW.maxX = maxZ1 + padX;
+                VIEW.minY = minZ2 - padY;
+                VIEW.maxY = maxZ2 + padY;
+            } catch (e) {
+                console.error('Failed to load latent data:', e);
+            }
+
+            updateUI();
+        }
+
+        init();
+    </script>
+</body>
+</html>

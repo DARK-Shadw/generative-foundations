@@ -1,0 +1,4 @@
+flask==3.1.0
+torch==2.6.0+cpu
+numpy==2.2.4
+pillow==11.1.0
